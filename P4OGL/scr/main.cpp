@@ -43,7 +43,7 @@ unsigned int triangleIndexVBO;
 unsigned int colorTexId;
 unsigned int emiTexId;
 
-//
+//VAO y VBO del plano de renderizado
 unsigned int planeVAO;
 unsigned int planeVertexVBO;
 
@@ -85,8 +85,9 @@ unsigned int uDepthTexPP[numPostProcessPrograms];
 unsigned int fbo;
 unsigned int colorBuffTexId;
 unsigned int depthBuffTexId;
-unsigned int zBuffTexId;
 
+bool isOnMotionBlur = false;
+bool isOnNegativeColor = false;
 bool isOnFilterGauss3x3 = false; 
 const float maskFactorGauss3x3 = float(1.0f / 16.0f);
 const float maskGauss3x3[9] = {
@@ -463,10 +464,10 @@ unsigned int loadTex(const char *fileName)
 
 void renderFunc()
 {
+	//Activar el fbo
 	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	/**/
 	glUseProgram(program);
 
 	//Texturas
@@ -511,21 +512,30 @@ void renderFunc()
 		model = glm::scale(model, glm::vec3(1.0f / (size*0.7f)));
 		renderCube();
 	}
-	//*/
 
-	if (!isOnFilterGauss3x3 && !isOnFilterGauss5x5 && !isOnFilterVerticalEdges && !isOnFilterHorizontalEdges) {  //Caso de post-procesado sin filtros
-		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-		glUseProgram(postProcessPrograms[0]);
-		glDisable(GL_CULL_FACE);
-		glDisable(GL_DEPTH_TEST);
+	//Desactivar el fbo
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
-		//glEnable(GL_BLEND);
-		//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		//glBlendEquation(GL_FUNC_ADD);
+	//Desactivamos test de cull y profundidad para todos los shaders de post procesado
+	glDisable(GL_CULL_FACE);
+	glDisable(GL_DEPTH_TEST);
 
+	//Pulsando la tecla 5 se determina si se aplica motion blur o no
+	if (isOnMotionBlur) {
+		glEnable(GL_BLEND);
 		glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_ALPHA);
 		glBlendColor(0.5f, 0.5f, 0.5f, 0.6f);
 		glBlendEquation(GL_FUNC_ADD);
+	}
+	//Pulsando la tecla 5 se determina si se aplica la negación de color o no
+	if (isOnNegativeColor) {
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_ONE_MINUS_SRC_COLOR, GL_ZERO);
+		glBlendEquation(GL_FUNC_SUBTRACT);
+	}
+
+	if (!isOnFilterGauss3x3 && !isOnFilterGauss5x5 && !isOnFilterVerticalEdges && !isOnFilterHorizontalEdges) {  //Caso de post-procesado sin filtros
+		glUseProgram(postProcessPrograms[0]);
 
 		if (uColorTexPP[0] != -1)
 		{
@@ -539,20 +549,10 @@ void renderFunc()
 			glBindTexture(GL_TEXTURE_2D, depthBuffTexId);
 			glUniform1i(uDepthTexPP[0], 1);
 		}
-
-		glBindVertexArray(planeVAO);
-		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	}
 	else {  //Casos de post-procesado con filtros que se pueden aplicar de forma aditiva por teclado
 		if (isOnFilterGauss3x3) {  //Filtrado Gaussiano 3x3
-			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 			glUseProgram(postProcessPrograms[1]);
-			glDisable(GL_CULL_FACE);
-			glDisable(GL_DEPTH_TEST);
-
-			glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_ALPHA);
-			glBlendColor(0.5f, 0.5f, 0.5f, 0.6f);
-			glBlendEquation(GL_FUNC_ADD);
 
 			glUniform1fv(uMask3x3, 9, maskGauss3x3);
 
@@ -568,19 +568,9 @@ void renderFunc()
 				glBindTexture(GL_TEXTURE_2D, depthBuffTexId);
 				glUniform1i(uDepthTexPP[1], 1);
 			}
-
-			glBindVertexArray(planeVAO);
-			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 		}
 		if (isOnFilterGauss5x5) {  //Filtrado Gaussiano 5x5
-			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 			glUseProgram(postProcessPrograms[2]);
-			glDisable(GL_CULL_FACE);
-			glDisable(GL_DEPTH_TEST);
-
-			glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_ALPHA);
-			glBlendColor(0.5f, 0.5f, 0.5f, 0.6f);
-			glBlendEquation(GL_FUNC_ADD);
 
 			glUniform1fv(uMask5x5, 25, maskGauss5x5);
 
@@ -596,19 +586,9 @@ void renderFunc()
 				glBindTexture(GL_TEXTURE_2D, depthBuffTexId);
 				glUniform1i(uDepthTexPP[2], 1);
 			}
-
-			glBindVertexArray(planeVAO);
-			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 		}
 		if (isOnFilterVerticalEdges) {  //Filtrado de Bordes Verticales
-			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 			glUseProgram(postProcessPrograms[3]);
-			glDisable(GL_CULL_FACE);
-			glDisable(GL_DEPTH_TEST);
-
-			glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_ALPHA);
-			glBlendColor(0.5f, 0.5f, 0.5f, 0.6f);
-			glBlendEquation(GL_FUNC_ADD);
 
 			glUniform1fv(uMaskVEdges3x3, 9, maskVertical);
 
@@ -624,19 +604,9 @@ void renderFunc()
 				glBindTexture(GL_TEXTURE_2D, depthBuffTexId);
 				glUniform1i(uDepthTexPP[3], 1);
 			}
-
-			glBindVertexArray(planeVAO);
-			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 		}
 		if (isOnFilterHorizontalEdges) {  //Filtrado de Bordes Horizontales
-			glBindFramebuffer(GL_FRAMEBUFFER, 0);
 			glUseProgram(postProcessPrograms[4]);
-			glDisable(GL_CULL_FACE);
-			glDisable(GL_DEPTH_TEST);
-
-			glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_ALPHA);
-			glBlendColor(0.5f, 0.5f, 0.5f, 0.6f);
-			glBlendEquation(GL_FUNC_ADD);
 
 			glUniform1fv(uMaskHEdges3x3, 9, maskHorizontal);
 
@@ -652,12 +622,14 @@ void renderFunc()
 				glBindTexture(GL_TEXTURE_2D, depthBuffTexId);
 				glUniform1i(uDepthTexPP[4], 1);
 			}
-
-			glBindVertexArray(planeVAO);
-			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 		}
 	}
+
+	//Se dibuja la textura en el plano de proyección
+	glBindVertexArray(planeVAO);
+	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	
+	//Se desactiva el blending y se reactiva el cálculo de culling y el test de profundidad para el siguiente fwRendering step
 	glDisable(GL_BLEND);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
@@ -721,7 +693,6 @@ void initFBO()
 	glGenFramebuffers(1, &fbo);
 	glGenTextures(1, &colorBuffTexId);
 	glGenTextures(1, &depthBuffTexId);
-	glGenTextures(1, &zBuffTexId);
 }
 
 void resizeFBO(unsigned int w, unsigned int h)
@@ -734,12 +705,6 @@ void resizeFBO(unsigned int w, unsigned int h)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 
-	glBindTexture(GL_TEXTURE_2D, zBuffTexId);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, w, h, 0,
-		GL_RGBA, GL_UNSIGNED_BYTE, 0);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
 	glBindTexture(GL_TEXTURE_2D, depthBuffTexId);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT24, w, h, 0,
 		GL_DEPTH_COMPONENT, GL_UNSIGNED_BYTE, NULL);
@@ -750,13 +715,11 @@ void resizeFBO(unsigned int w, unsigned int h)
 
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
 		GL_TEXTURE_2D, colorBuffTexId, 0);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1,
-		GL_TEXTURE_2D, zBuffTexId, 0);
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
 		depthBuffTexId, 0);
 
-	const GLenum buffs[2] = { GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT0 };
-	glDrawBuffers(2, buffs);
+	const GLenum buffs[1] = { GL_COLOR_ATTACHMENT0 };
+	glDrawBuffers(1, buffs);
 	
 	if (GL_FRAMEBUFFER_COMPLETE != glCheckFramebufferStatus(GL_FRAMEBUFFER))
 	{
@@ -772,15 +735,35 @@ void keyboardFunc(unsigned char key, int x, int y)
 	switch (key) {
 		case '1':  //Filtro Gaussiano 3x3
 			isOnFilterGauss3x3 = !isOnFilterGauss3x3;
+			isOnFilterGauss5x5 = false;
+			isOnFilterVerticalEdges = false;
+			isOnFilterHorizontalEdges = false;
 			break;
 		case '2':  //Filtro Gaussiano 5x5
 			isOnFilterGauss5x5 = !isOnFilterGauss5x5;
+			isOnFilterGauss3x3 = false;
+			isOnFilterVerticalEdges = false;
+			isOnFilterHorizontalEdges = false;
 			break;
 		case '3':  //Filtro Bordes Verticales
 			isOnFilterVerticalEdges = !isOnFilterVerticalEdges;
+			isOnFilterGauss3x3 = false;
+			isOnFilterGauss5x5 = false;
+			isOnFilterHorizontalEdges = false;
 			break;
 		case '4':  //Filtro Bordes Horizontales
 			isOnFilterHorizontalEdges = !isOnFilterHorizontalEdges;
+			isOnFilterGauss3x3 = false;
+			isOnFilterGauss5x5 = false;
+			isOnFilterVerticalEdges = false;
+			break;
+		case '5':  //Filtro Bordes Horizontales
+			isOnMotionBlur = !isOnMotionBlur;
+			isOnNegativeColor = false;
+			break;
+		case '6':  //Filtro Bordes Horizontales
+			isOnNegativeColor = !isOnNegativeColor;
+			isOnMotionBlur = false;
 			break;
 	}
 }

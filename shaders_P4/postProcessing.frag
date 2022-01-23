@@ -22,9 +22,9 @@ void main()
 
 	vec4 color = vec4(0.0);
 
-	// if not using filters
+	//Si no se están usando filtros el cálculo de color se computa de esta forma
 	color += texture(colorTex, texCoord + ts * dof, 0.0);  // DOF without Filters
-
+	
 	outColor = color;
 }
 
