@@ -47,11 +47,6 @@ unsigned int emiTexId;
 unsigned int planeVAO;
 unsigned int planeVertexVBO;
 
-//Por definir
-unsigned int vshader;
-unsigned int fshader;
-unsigned int program;
-
 //Variables Uniform 
 int uModelViewMat;
 int uModelViewProjMat;
@@ -60,6 +55,8 @@ int uNormalMat;
 //Convolution Filter Uniform Variables
 int uMask3x3;
 int uMask5x5;
+int uMaskVEdges3x3;
+int uMaskHEdges3x3;
 
 //Texturas Uniform
 int uColorTex;
@@ -71,42 +68,56 @@ int inColor;
 int inNormal;
 int inTexCoord;
 
-unsigned int postProccesVShader;
-unsigned int postProccesFShader;
-unsigned int postProccesProgram;
+// Forward Render shaders
+unsigned int vshader;
+unsigned int fshader;
+unsigned int program;
+
+// Post processing shaders
+const int numPostProcessPrograms = 5;
+unsigned int postProcessVShaders[numPostProcessPrograms];
+unsigned int postProcessFShaders[numPostProcessPrograms];
+unsigned int postProcessPrograms[numPostProcessPrograms];
 
 //Uniform
-unsigned int uColorTexPP;
-
+unsigned int uColorTexPP[numPostProcessPrograms];
+unsigned int uDepthTexPP[numPostProcessPrograms];
 unsigned int fbo;
 unsigned int colorBuffTexId;
 unsigned int depthBuffTexId;
-
-unsigned int uZTexPP;
 unsigned int zBuffTexId;
 
-//Variables de la cámara y de control de filtros
-const float ORBIT_RADIUS = 10.0f;
-float cameraX = 0.0f, cameraZ = -6.0f, cameraAlphaY = 0.0f, cameraAlphaX = 0.0f;
-glm::vec3 lookAt = glm::vec3(0.0f, 0.0f, 0.0f);
-glm::vec3 right = glm::vec3(-10.0f, 0.0f, -10.0f);
+bool isOnFilterGauss3x3 = false; 
+const float maskFactorGauss3x3 = float(1.0f / 16.0f);
+const float maskGauss3x3[9] = {
+								float(1.0f * maskFactorGauss3x3), float(2.0f * maskFactorGauss3x3), float(1.0f * maskFactorGauss3x3),
+								float(2.0f * maskFactorGauss3x3), float(4.0f * maskFactorGauss3x3), float(2.0f * maskFactorGauss3x3),
+								float(1.0f * maskFactorGauss3x3), float(2.0f * maskFactorGauss3x3), float(1.0f * maskFactorGauss3x3)
+							  };
 
-bool isOnFilter3x3 = false; 
-const float maskFactor3x3 = float(1.0 / 14.0);
-const float mask3x3[9] = {
-							float(1.0 * maskFactor3x3), float(2.0 * maskFactor3x3), float(1.0 * maskFactor3x3),
-							float(2.0 * maskFactor3x3), float(2.0 * maskFactor3x3), float(2.0 * maskFactor3x3),
-							float(1.0 * maskFactor3x3), float(2.0 * maskFactor3x3), float(1.0 * maskFactor3x3)
-						 };
-bool isOnFilter5x5 = false;
-const float maskFactor5x5 = float(1.0 / 65.0);
-const float mask5x5[25] = {
-							float(1.0 * maskFactor5x5), float(2.0 * maskFactor5x5), float(3.0 * maskFactor5x5), float(2.0 * maskFactor5x5), float(1.0 * maskFactor5x5),
-							float(2.0 * maskFactor5x5), float(3.0 * maskFactor5x5), float(4.0 * maskFactor5x5), float(3.0 * maskFactor5x5), float(2.0 * maskFactor5x5),
-							float(3.0 * maskFactor5x5), float(4.0 * maskFactor5x5), float(5.0 * maskFactor5x5), float(4.0 * maskFactor5x5), float(3.0 * maskFactor5x5),
-							float(2.0 * maskFactor5x5), float(3.0 * maskFactor5x5), float(4.0 * maskFactor5x5), float(3.0 * maskFactor5x5), float(2.0 * maskFactor5x5),
-							float(1.0 * maskFactor5x5), float(2.0 * maskFactor5x5), float(3.0 * maskFactor5x5), float(2.0 * maskFactor5x5), float(1.0 * maskFactor5x5)
-};
+bool isOnFilterGauss5x5 = false;
+const float maskFactorGauss5x5 = float(1.0f / 273.0f);
+const float maskGauss5x5[25] = {
+								float(1.0f * maskFactorGauss5x5), float(4.0f * maskFactorGauss5x5),  float(7.0f * maskFactorGauss5x5),  float(4.0f * maskFactorGauss5x5),  float(1.0f * maskFactorGauss5x5),
+								float(4.0f * maskFactorGauss5x5), float(16.0f * maskFactorGauss5x5), float(26.0f * maskFactorGauss5x5), float(16.0f * maskFactorGauss5x5), float(4.0f * maskFactorGauss5x5),
+								float(7.0f * maskFactorGauss5x5), float(26.0f * maskFactorGauss5x5), float(41.0f * maskFactorGauss5x5), float(26.0f * maskFactorGauss5x5), float(7.0f * maskFactorGauss5x5),
+								float(4.0f * maskFactorGauss5x5), float(16.0f * maskFactorGauss5x5), float(26.0f * maskFactorGauss5x5), float(16.0f * maskFactorGauss5x5), float(4.0f * maskFactorGauss5x5),
+								float(1.0f * maskFactorGauss5x5), float(4.0f * maskFactorGauss5x5),  float(7.0f * maskFactorGauss5x5),  float(4.0f * maskFactorGauss5x5),  float(1.0f * maskFactorGauss5x5)
+							   };
+
+bool isOnFilterVerticalEdges = false;
+const float maskVertical[9] = {
+								float(1.0f),  float(0.0f), float(-1.0f),
+								float(1.0f),  float(0.0f), float(-1.0f),
+								float(1.0f),  float(0.0f), float(-1.0f)
+							  };
+
+bool isOnFilterHorizontalEdges = false;
+const float maskHorizontal[9] = {
+								float(1.0f),  float(1.0f), float(1.0f),
+								float(0.0f),  float(0.0f), float(0.0f),
+								float(-1.0f), float(-1.0f), float(-1.0f)
+								};
 
 //////////////////////////////////////////////////////////////
 // Funciones auxiliares
@@ -141,7 +152,7 @@ unsigned int loadTex(const char *fileName);
 // Nuevas variables auxiliares
 //////////////////////////////////////////////////////////////
 void initPlane();
-void initShaderPP(const char* vname, const char* fname);
+void initShaderPP(const char* vname, const char* fname, int ppProgram_i, unsigned int& ppVshader, unsigned int& ppFshader);
 void initFBO();
 void resizeFBO(unsigned int w, unsigned int h);
 
@@ -153,14 +164,18 @@ void resizeFBO(unsigned int w, unsigned int h);
 
 int main(int argc, char** argv)
 {
-	std::locale::global(std::locale("spanish"));// acentos ;)
+	std::locale::global(std::locale("spanish"));
 
 	initContext(argc, argv);
 	initOGL();
-	initShaderFw("../shaders_P4/fwRendering.v0.vert", "../shaders_P4/fwRendering.v0.frag");
+	initShaderFw("../shaders_P4/fwRendering.vert", "../shaders_P4/fwRendering.frag");
 	initObj();
 	
-	initShaderPP("../shaders_P4/postProcessing.v0.vert", "../shaders_P4/postProcessing.v1.frag");
+	initShaderPP("../shaders_P4/postProcessing.vert", "../shaders_P4/postProcessing.frag", 0, postProcessVShaders[0], postProcessFShaders[0]);
+	initShaderPP("../shaders_P4/postProcessingGauss3x3.vert", "../shaders_P4/postProcessingGauss3x3.frag", 1, postProcessVShaders[1], postProcessFShaders[1]);
+	initShaderPP("../shaders_P4/postProcessingGauss5x5.vert", "../shaders_P4/postProcessingGauss5x5.frag", 2, postProcessVShaders[2], postProcessFShaders[2]);
+	initShaderPP("../shaders_P4/postProcessingVerticalEdges.vert", "../shaders_P4/postProcessingVerticalEdges.frag", 3, postProcessVShaders[3], postProcessFShaders[3]);
+	initShaderPP("../shaders_P4/postProcessingHorizontalEdges.vert", "../shaders_P4/postProcessingHorizontalEdges.frag", 4, postProcessVShaders[4], postProcessFShaders[4]);
 	initPlane();
 	initFBO();
 	resizeFBO(SCREEN_SIZE);
@@ -219,7 +234,6 @@ void initOGL()
 	view[3].z = -25.0f;
 }
 
-
 void destroy()
 {
 	glDetachShader(program, vshader);
@@ -240,7 +254,7 @@ void destroy()
 	glDeleteTextures(1, &emiTexId);
 }
 
-void initShaderFw(const char *vname, const char *fname)
+void initShaderFw(const char* vname, const char* fname)
 {
 	vshader = loadShader(vname, GL_VERTEX_SHADER);
 	fshader = loadShader(fname, GL_FRAGMENT_SHADER);
@@ -285,6 +299,44 @@ void initShaderFw(const char *vname, const char *fname)
 	inColor = glGetAttribLocation(program, "inColor");
 	inNormal = glGetAttribLocation(program, "inNormal");
 	inTexCoord = glGetAttribLocation(program, "inTexCoord");
+}
+
+void initShaderPP(const char* vname, const char* fname, int ppProgram_i, unsigned int& ppVshader, unsigned int& ppFshader)
+{
+	ppVshader = loadShader(vname, GL_VERTEX_SHADER);
+	ppFshader = loadShader(fname, GL_FRAGMENT_SHADER);
+
+	postProcessPrograms[ppProgram_i] = glCreateProgram();
+	glAttachShader(postProcessPrograms[ppProgram_i], ppVshader);
+	glAttachShader(postProcessPrograms[ppProgram_i], ppFshader);
+	glLinkProgram(postProcessPrograms[ppProgram_i]);
+
+	int linked;
+	glGetProgramiv(postProcessPrograms[ppProgram_i], GL_LINK_STATUS, &linked);
+	if (!linked)
+	{
+		//Calculamos una cadena de error
+		GLint logLen;
+		glGetProgramiv(postProcessPrograms[ppProgram_i], GL_INFO_LOG_LENGTH, &logLen);
+		char* logString = new char[logLen];
+		glGetProgramInfoLog(postProcessPrograms[ppProgram_i], logLen, NULL, logString);
+		std::cout << "Error: " << logString << std::endl;
+		delete logString;
+		glDeleteProgram(postProcessPrograms[ppProgram_i]);
+		postProcessPrograms[ppProgram_i] = 0;
+		exit(-1);
+	}
+
+	uColorTexPP[ppProgram_i] = glGetUniformLocation(postProcessPrograms[ppProgram_i], "colorTex");
+	uDepthTexPP[ppProgram_i] = glGetUniformLocation(postProcessPrograms[ppProgram_i], "depthTex");
+
+	if (ppProgram_i == 1) uMask3x3 = glGetUniformLocation(postProcessPrograms[ppProgram_i], "mask3x3");
+	if (ppProgram_i == 2) uMask5x5 = glGetUniformLocation(postProcessPrograms[ppProgram_i], "mask5x5");
+	if (ppProgram_i == 3) uMaskVEdges3x3 = glGetUniformLocation(postProcessPrograms[ppProgram_i], "maskVE3x3");
+	if (ppProgram_i == 4) uMaskHEdges3x3 = glGetUniformLocation(postProcessPrograms[ppProgram_i], "maskHE3x3");
+
+	if (0 != glGetAttribLocation(postProcessPrograms[ppProgram_i], "inPos"))
+		exit(-1);
 }
 
 void initObj()
@@ -461,56 +513,150 @@ void renderFunc()
 	}
 	//*/
 
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	if (!isOnFilterGauss3x3 && !isOnFilterGauss5x5 && !isOnFilterVerticalEdges && !isOnFilterHorizontalEdges) {  //Caso de post-procesado sin filtros
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glUseProgram(postProcessPrograms[0]);
+		glDisable(GL_CULL_FACE);
+		glDisable(GL_DEPTH_TEST);
 
-	glUseProgram(postProccesProgram);
-	glDisable(GL_CULL_FACE);
-	glDisable(GL_DEPTH_TEST);
+		//glEnable(GL_BLEND);
+		//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		//glBlendEquation(GL_FUNC_ADD);
 
-	//glEnable(GL_BLEND);
-	//glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	//glBlendEquation(GL_FUNC_ADD);
+		glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_ALPHA);
+		glBlendColor(0.5f, 0.5f, 0.5f, 0.6f);
+		glBlendEquation(GL_FUNC_ADD);
 
-	glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_ALPHA);
-	glBlendColor(0.5f, 0.5f, 0.5f, 0.6f);
-	glBlendEquation(GL_FUNC_ADD);
+		if (uColorTexPP[0] != -1)
+		{
+			glActiveTexture(GL_TEXTURE0);
+			glBindTexture(GL_TEXTURE_2D, colorBuffTexId);
+			glUniform1i(uColorTexPP[0], 0);
+		}
+		if (uDepthTexPP[0] != -1)
+		{
+			glActiveTexture(GL_TEXTURE0 + 1);
+			glBindTexture(GL_TEXTURE_2D, depthBuffTexId);
+			glUniform1i(uDepthTexPP[0], 1);
+		}
 
-	if (uMask3x3 != -1) {
-		if (isOnFilter3x3) {
-			glUniform1fv(uMask3x3, 9, mask3x3);
-		}		
-		else {
-			float empty[1] = { 1.0f };
-			glUniform1fv(uMask3x3, 1, empty);
+		glBindVertexArray(planeVAO);
+		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+	}
+	else {  //Casos de post-procesado con filtros que se pueden aplicar de forma aditiva por teclado
+		if (isOnFilterGauss3x3) {  //Filtrado Gaussiano 3x3
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glUseProgram(postProcessPrograms[1]);
+			glDisable(GL_CULL_FACE);
+			glDisable(GL_DEPTH_TEST);
+
+			glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_ALPHA);
+			glBlendColor(0.5f, 0.5f, 0.5f, 0.6f);
+			glBlendEquation(GL_FUNC_ADD);
+
+			glUniform1fv(uMask3x3, 9, maskGauss3x3);
+
+			if (uColorTexPP[1] != -1)
+			{
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, colorBuffTexId);
+				glUniform1i(uColorTexPP[1], 0);
+			}
+			if (uDepthTexPP[1] != -1)
+			{
+				glActiveTexture(GL_TEXTURE0 + 1);
+				glBindTexture(GL_TEXTURE_2D, depthBuffTexId);
+				glUniform1i(uDepthTexPP[1], 1);
+			}
+
+			glBindVertexArray(planeVAO);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		}
+		if (isOnFilterGauss5x5) {  //Filtrado Gaussiano 5x5
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glUseProgram(postProcessPrograms[2]);
+			glDisable(GL_CULL_FACE);
+			glDisable(GL_DEPTH_TEST);
+
+			glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_ALPHA);
+			glBlendColor(0.5f, 0.5f, 0.5f, 0.6f);
+			glBlendEquation(GL_FUNC_ADD);
+
+			glUniform1fv(uMask5x5, 25, maskGauss5x5);
+
+			if (uColorTexPP[2] != -1)
+			{
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, colorBuffTexId);
+				glUniform1i(uColorTexPP[2], 0);
+			}
+			if (uDepthTexPP[2] != -1)
+			{
+				glActiveTexture(GL_TEXTURE0 + 1);
+				glBindTexture(GL_TEXTURE_2D, depthBuffTexId);
+				glUniform1i(uDepthTexPP[2], 1);
+			}
+
+			glBindVertexArray(planeVAO);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		}
+		if (isOnFilterVerticalEdges) {  //Filtrado de Bordes Verticales
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glUseProgram(postProcessPrograms[3]);
+			glDisable(GL_CULL_FACE);
+			glDisable(GL_DEPTH_TEST);
+
+			glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_ALPHA);
+			glBlendColor(0.5f, 0.5f, 0.5f, 0.6f);
+			glBlendEquation(GL_FUNC_ADD);
+
+			glUniform1fv(uMaskVEdges3x3, 9, maskVertical);
+
+			if (uColorTexPP[3] != -1)
+			{
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, colorBuffTexId);
+				glUniform1i(uColorTexPP[3], 0);
+			}
+			if (uDepthTexPP[3] != -1)
+			{
+				glActiveTexture(GL_TEXTURE0 + 1);
+				glBindTexture(GL_TEXTURE_2D, depthBuffTexId);
+				glUniform1i(uDepthTexPP[3], 1);
+			}
+
+			glBindVertexArray(planeVAO);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+		}
+		if (isOnFilterHorizontalEdges) {  //Filtrado de Bordes Horizontales
+			glBindFramebuffer(GL_FRAMEBUFFER, 0);
+			glUseProgram(postProcessPrograms[4]);
+			glDisable(GL_CULL_FACE);
+			glDisable(GL_DEPTH_TEST);
+
+			glBlendFunc(GL_CONSTANT_COLOR, GL_CONSTANT_ALPHA);
+			glBlendColor(0.5f, 0.5f, 0.5f, 0.6f);
+			glBlendEquation(GL_FUNC_ADD);
+
+			glUniform1fv(uMaskHEdges3x3, 9, maskHorizontal);
+
+			if (uColorTexPP[4] != -1)
+			{
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, colorBuffTexId);
+				glUniform1i(uColorTexPP[4], 0);
+			}
+			if (uDepthTexPP[4] != -1)
+			{
+				glActiveTexture(GL_TEXTURE0 + 1);
+				glBindTexture(GL_TEXTURE_2D, depthBuffTexId);
+				glUniform1i(uDepthTexPP[4], 1);
+			}
+
+			glBindVertexArray(planeVAO);
+			glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 		}
 	}
-		
-	if (uMask5x5 != -1) {
-		if (isOnFilter5x5) {
-			glUniform1fv(uMask5x5, 25, mask5x5);
-		}
-		else {
-			float empty[1] = { 1.0f };
-			glUniform1fv(uMask5x5, 1, empty);
-		}
-	}
-		
-	if (uColorTexPP != -1)
-	{
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, colorBuffTexId);
-		glUniform1i(uColorTexPP, 0);
-	}
-
-	if (uZTexPP != -1)
-	{
-		glActiveTexture(GL_TEXTURE0 + 1);
-		glBindTexture(GL_TEXTURE_2D, zBuffTexId);
-		glUniform1i(uZTexPP, 1);
-	}
-
-	glBindVertexArray(planeVAO);
-	glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	
 	glDisable(GL_BLEND);
 	glEnable(GL_CULL_FACE);
@@ -539,8 +685,6 @@ void renderCube()
 	glDrawElements(GL_TRIANGLES, cubeNTriangleIndex * 3,
 		GL_UNSIGNED_INT, (void*)0);
 }
-
-
 
 void resizeFunc(int width, int height)
 {
@@ -571,43 +715,6 @@ void initPlane()
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(0);
 }
-
-void initShaderPP(const char* vname, const char* fname)
-{
-	postProccesVShader = loadShader(vname, GL_VERTEX_SHADER);
-	postProccesFShader = loadShader(fname, GL_FRAGMENT_SHADER);
-
-	postProccesProgram = glCreateProgram();
-	glAttachShader(postProccesProgram, postProccesVShader);
-	glAttachShader(postProccesProgram, postProccesFShader);
-	
-	glLinkProgram(postProccesProgram);
-	int linked;
-	glGetProgramiv(postProccesProgram, GL_LINK_STATUS, &linked);
-	if (!linked)
-	{
-		//Calculamos una cadena de error
-		GLint logLen;
-		glGetProgramiv(postProccesProgram, GL_INFO_LOG_LENGTH, &logLen);
-		char* logString = new char[logLen];
-		glGetProgramInfoLog(postProccesProgram, logLen, NULL, logString);
-		std::cout << "Error: " << logString << std::endl;
-		delete logString;
-		glDeleteProgram(postProccesProgram);
-		postProccesProgram = 0;
-		exit(-1);
-	}
-
-	uColorTexPP = glGetUniformLocation(postProccesProgram, "colorTex");
-	uZTexPP = glGetUniformLocation(postProccesProgram, "zTex");
-
-	uMask3x3 = glGetUniformLocation(postProccesProgram, "mask3x3");
-	uMask5x5 = glGetUniformLocation(postProccesProgram, "mask5x5");
-
-	if (0 != glGetAttribLocation(postProccesProgram, "inPos"))
-		exit(-1);
-}
-
 
 void initFBO()
 {
@@ -660,85 +767,22 @@ void resizeFBO(unsigned int w, unsigned int h)
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }
 
-
-
 void keyboardFunc(unsigned char key, int x, int y)
 {
-	std::cout << "Se ha pulsado la tecla " << key << std::endl << std::endl;
-	const float SPEED = 1.0f;
-	const float ALPHA = 5.0f;
 	switch (key) {
-		case 'w':  //Alante
-			cameraX += SPEED * glm::sin(glm::radians(-cameraAlphaY));
-			cameraZ += SPEED * glm::cos(glm::radians(-cameraAlphaY));
+		case '1':  //Filtro Gaussiano 3x3
+			isOnFilterGauss3x3 = !isOnFilterGauss3x3;
 			break;
-		case 'W':
-			cameraX += SPEED * glm::sin(glm::radians(-cameraAlphaY));
-			cameraZ += SPEED * glm::cos(glm::radians(-cameraAlphaY));
+		case '2':  //Filtro Gaussiano 5x5
+			isOnFilterGauss5x5 = !isOnFilterGauss5x5;
 			break;
-		case 's':  //Atrás
-			cameraX -= SPEED * glm::sin(glm::radians(-cameraAlphaY));
-			cameraZ -= SPEED * glm::cos(glm::radians(-cameraAlphaY));
+		case '3':  //Filtro Bordes Verticales
+			isOnFilterVerticalEdges = !isOnFilterVerticalEdges;
 			break;
-		case 'S':
-			cameraX -= SPEED * glm::sin(glm::radians(-cameraAlphaY));
-			cameraZ -= SPEED * glm::cos(glm::radians(-cameraAlphaY));
-			break;
-		case 'a':  //Izq
-			cameraX += SPEED * glm::cos(glm::radians(cameraAlphaY));
-			cameraZ += SPEED * glm::sin(glm::radians(cameraAlphaY));
-			break;
-		case 'A':
-			cameraX += SPEED * glm::cos(glm::radians(cameraAlphaY));
-			cameraZ += SPEED * glm::sin(glm::radians(cameraAlphaY));
-			break;
-		case 'd':  //Der
-			cameraX -= SPEED * glm::cos(glm::radians(cameraAlphaY));
-			cameraZ -= SPEED * glm::sin(glm::radians(cameraAlphaY));
-			break;
-		case 'D':
-			cameraX -= SPEED * glm::cos(glm::radians(cameraAlphaY));
-			cameraZ -= SPEED * glm::sin(glm::radians(cameraAlphaY));
-			break;
-		case 'q':  //RotIzq
-			cameraAlphaY -= ALPHA;
-			break;
-		case 'Q':
-			cameraAlphaY -= ALPHA;
-			break;
-		case 'e':  //RotDer
-			cameraAlphaY += ALPHA;
-			break;
-		case 'E':
-			cameraAlphaY += ALPHA;
-			break;
-		case '3':  //Filtro Gaussiano 3x3
-			isOnFilter3x3 = !isOnFilter3x3;
-			break;
-		case '5':  //Filtro Gaussiano 5x5
-			isOnFilter5x5 = !isOnFilter5x5;
+		case '4':  //Filtro Bordes Horizontales
+			isOnFilterHorizontalEdges = !isOnFilterHorizontalEdges;
 			break;
 	}
-
-	/*glm::mat4 camera_movement = glm::mat4(1.0f);
-	//Inicializar estado actual de cámara (traslación)
-	camera_movement[3].x = cameraX;
-	camera_movement[3].z = cameraZ;
-	//Rotación
-	glm::mat4 center_camera = glm::translate(camera_movement, glm::vec3(-cameraX, 0.0f, -cameraZ));  // Matriz para trasladar al centro
-	glm::mat4 rotate_camera = glm::rotate(center_camera, glm::radians(cameraAlphaY), glm::vec3(0.0f, 1.0f, 0.0f));
-	glm::mat4 final_camera_state = glm::translate(rotate_camera, glm::vec3(cameraX, 0.0f, cameraZ));
-	view = final_camera_state;
-
-	lookAt.x = cameraX;
-	lookAt.z = cameraZ;
-	right.x = cameraX;
-	right.z = cameraZ;
-	lookAt = glm::vec3(lookAt.x + ORBIT_RADIUS * glm::sin(glm::radians(-cameraAlphaY)), 0.0f, lookAt.z + ORBIT_RADIUS * glm::cos(glm::radians(cameraAlphaY)));
-	right = glm::vec3(right.x + ORBIT_RADIUS * -glm::cos(glm::radians(-cameraAlphaY)), 0.0f, right.z + ORBIT_RADIUS * -glm::cos(glm::radians(cameraAlphaY)));
-	std::cout << "Lookat x: " << lookAt.x << " - lookAt z: " << lookAt.z << std::endl;
-	std::cout << "Right x: " << right.x << " - Right z: " << right.z << std::endl;*/
-
 }
 
 void mouseFunc(int button, int state, int x, int y)
@@ -753,21 +797,4 @@ void mouseFunc(int button, int state, int x, int y)
 	if (button == 2) std::cout << "de la derecha del ratón " << std::endl;
 
 	std::cout << "en la posición " << x << " " << y << std::endl << std::endl;
-}
-
-void mouseMotionFunc(int x, int y)
-{
-	glm::mat4 camera_orbit = glm::mat4(1.0f);
-	//Inicializar estado actual de cámara (traslación)
-	camera_orbit[3].z = -6;
-
-	float movX = 0.0f - lookAt.x;
-	float movZ = 0.0f - lookAt.z;
-	//Calcular angle con respecto al cambio en la x del mouse click en el viewport
-	float angleX = x;
-
-	glm::mat4 translate_to_rot_center = glm::translate(camera_orbit, glm::vec3(movX, 0.0f, movZ));
-	glm::mat4 rotation_from_rot_centerX = glm::rotate(translate_to_rot_center, glm::radians(angleX), glm::vec3(0.0f, 1.0f, 0.0f));
-	glm::mat4 final_view = glm::translate(rotation_from_rot_centerX, glm::vec3(-movX, 0.0f, -movZ));
-	view = final_view;
 }

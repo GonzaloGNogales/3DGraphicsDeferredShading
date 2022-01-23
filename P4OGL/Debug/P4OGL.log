@@ -1,4 +1,4 @@
 ﻿cl : línea de comandos warning D9035: La opción 'Gm' está desusada y se quitará en próximas versiones
   main.cpp
-C:\Users\gonza\OneDrive\Escritorio\Computer Science\MIGJRV\1 CUATRI\G3D\Practica IV\P4OGL\P4OGL\scr\main.cpp(767,15): warning C4244: 'inicializando': conversión de 'int' a 'float'; posible pérdida de datos
+auxiliar.obj : warning LNK4075: se omite '/EDITANDCONTINUE' debido a la especificación '/SAFESEH'
   P4OGL.vcxproj -> C:\Users\gonza\OneDrive\Escritorio\Computer Science\MIGJRV\1 CUATRI\G3D\Practica IV\P4OGL\P4OGL\Debug\P4OGL.exe
